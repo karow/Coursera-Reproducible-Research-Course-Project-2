@@ -1,0 +1,196 @@
+---
+title: Course Project 2
+subtitle: Exploratory data analysis of the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database
+author: karow (GitHub)
+output: 
+  html_document: 
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+
+# Abstract
+In this project the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database was analyzed. This database contains information about major weather events in the United States, including event type, times and locations. Overall goal of this project is to explore the event types that couse the majority of injuries/fatalities and property/crop damages.
+
+# Data Processing
+For this analysis the workign directory was set and four packages are needed to be loaded into R:
+
+```{r warning = FALSE, message = FALSE}
+setwd("~/Documents/Coursera/DataScience/5_Course/c5week4")
+library(tidyr)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(ggplot2)
+```
+
+The data was loeaded into R and stored in the variabel NOAA. Subsequently, the variabel names of the data frame were converted to lower case to facilitate the analysis.
+
+```{r cache = TRUE}
+NOAA <- read.csv('repdata%2Fdata%2FStormData.csv.bz2', na.strings = c('', 'NA'))
+names(NOAA) <- tolower(names(NOAA))
+```
+
+This data frame contains 37 variabels of which only the following seven are needed:
+
+* evtype
+* fatalities
+* injuries
+* propdmg 
+* propdmgexp
+* cropdmg
+* cropdmgexp
+
+```{r}
+names(NOAA)
+```
+## Types Of Weather Events Most Harmful To Population Health
+
+First, a subset of the data frame callef 'subHealth' is made containing the following variabels:
+
+* evtype
+* fatalities
+* injuries
+
+```{r}
+subHealth <- subset(NOAA, select = c(evtype, fatalities, injuries))
+head(subHealth)
+```
+
+After taking a look at the new data subset 'subHealth', it is obvious that the column headers are values, instead of variable names. To tidy up the 'subHealth' data frame, the function gather() was used: 
+
+```{r}
+tidyHealth <- gather(subHealth, variable, counts, -evtype)
+head(tidyHealth)
+```
+
+To analyze which types of events are the most harmful to population health, the sum of all injuries/fatalities for each event type was calculated. The resulting local data frame was then converte into a normal data frame.
+
+```{r}
+sumHealth <- tidyHealth %>% group_by(evtype, variable) %>% summarise(sum = sum(counts))
+sumHealth <- data.frame(sumHealth)
+head(sumHealth)
+```
+
+Since the event types with the highest injuries/fatalities will be plotted in two separate plots, it is necessary to create two subgroups of the data frame, one containing the total counts of fatalities, and the second one containing the total counts of injuries.
+
+```{r}
+sumfatalities <- sumHealth %>% filter(variable == 'fatalities') %>% arrange(desc(sum)) %>% slice(1:10)
+str(sumfatalities)
+
+suminjuries <- sumHealth %>% filter(variable == 'injuries') %>% arrange(desc(sum)) %>% slice(1:10)
+str(suminjuries)
+```
+
+The structure of the data reveals that the factors of the event type variabel 'evtype' needs to be reset to ensure that the data can be plotted in the desired order.
+
+```{r}
+sumfatalities$evtype <- factor(x = sumfatalities$evtype, levels = sumfatalities$evtype)
+str(sumfatalities)
+
+suminjuries$evtype <- factor(x = suminjuries$evtype, levels = suminjuries$evtype)
+str(suminjuries)
+```
+
+The results will be presented in the 'Results' section.
+
+## Types Of Weather Events With Highest Economical Impact
+
+As in the previous section described, the original data frame was subset into two data frames, subProp and subCrop, containing either the data for the property damage or for the crop damage.
+
+```{r}
+subProp <- subset(NOAA, select = c(evtype, propdmg, propdmgexp))
+head(subProp)
+
+subCrop <- subset(NOAA, select = c(evtype, cropdmg, cropdmgexp))
+head(subCrop)
+```
+
+The propdmgexp/cropdmgexp variable contains the information about the unit (K = thousand, M = million, B = billion) of the costs that are indicated in the propdmg/cropdmg variabel. To calculate the actual costs, the 'subProp' data frame was filtered for each unit and the costs indicated in propdmg were multiplied by 1,000, 1,000,000, or 1,000,000,000 and the results were stored in a varibel called 'costs'. Finally, the three data frames were concatenated using the function rbind(), to obtain a single data frame called 'PropTotal'.
+
+```{r}
+subPropK <- subProp %>% filter(propdmgexp == 'K') %>% mutate(costs = propdmg * 1000)
+subPropM <- subProp %>% filter(propdmgexp == 'M') %>% mutate(costs = propdmg * 1000000)
+subPropB <- subProp %>% filter(propdmgexp == 'B') %>% mutate(costs = propdmg * 1000000000)
+PropTotal <- rbind(subPropK, subPropM, subPropB)
+head(PropTotal)
+```
+
+The analysis process described in the previous paragraph was applied to the crop damage data as well and the final data frame was called 'CropTotal':
+
+```{r}
+subCropK <- subCrop %>% filter(cropdmgexp == 'K') %>% mutate(costs = cropdmg * 1000)
+subCropM <- subCrop %>% filter(cropdmgexp == 'M') %>% mutate(costs = cropdmg * 1000000)
+subCropB <- subCrop %>% filter(cropdmgexp == 'B') %>% mutate(costs = cropdmg * 1000000000)
+CropTotal <- rbind(subCropK, subCropM, subCropB)
+head(CropTotal)
+```
+
+In the last step, the property/crop damage data was summarized to obtain the total costs for each event type and the factors for event type were reset. 
+
+```{r}
+SumPropTotal <- PropTotal %>% group_by(evtype) %>% summarize(totalCost = sum(costs)) %>% arrange(desc(totalCost)) %>% slice(1:10)
+SumPropTotal$evtype <- factor(x = SumPropTotal$evtype, levels = SumPropTotal$evtype)
+str(SumPropTotal)
+
+SumCropTotal <- CropTotal %>% group_by(evtype) %>% summarize(totalCost = sum(costs)) %>% arrange(desc(totalCost)) %>% slice(1:10)
+SumCropTotal$evtype <- factor(x = SumCropTotal$evtype, levels = SumCropTotal$evtype)
+str(SumCropTotal)
+```
+
+The final results for the property and crop damage data are shown in the 'Result section.
+
+# Results
+
+## Types Of Weather Events Most Harmful To Population Health
+
+In this section the processed data is visualized using ggplot2. The first figure shows two plots of the top 10 event types with the highest number of total fatalities (left plot) and injuries (right plot) in the United States. Since the numbers have a wide range a logarithmic scale was used to visualize the data.  
+
+```{r fig.height = 4, fig.width = 11}
+plot1.1 <- ggplot(data = sumfatalities, aes(x = evtype, y = sum)) +
+                geom_point() +
+                coord_flip() +
+                geom_text(aes(label=sum), hjust = -0.5) +
+                scale_y_log10(limits = c(1e2,1e4)) +
+                ylab('Total') +
+                xlab('Event') +
+                ggtitle('Fatalities')
+
+plot1.2 <- ggplot(data = suminjuries, aes(x = evtype, y = sum)) +
+        geom_point() +
+        coord_flip() +
+        geom_text(aes(label=sum), hjust = -0.5) +
+        scale_y_log10(limits = c(1e3,1e6)) +
+        ylab('Total') +
+        xlab('Event') +
+        ggtitle('Injuries')
+
+plot1 <- grid.arrange(plot1.1, plot1.2, ncol = 2, top = textGrob('Top 10 most harmful weather events for human health in the United States', gp = gpar(fontsize = 15, font = 8)))
+```
+
+## Types Of Weather Events With Highest Economical Impact
+
+The second figure shows two plots of the top 10 event types with the highest costs for property damage (left plot) and crop damage (right plot) in the United States.  
+
+```{r fig.height = 4, fig.width = 11}
+plot2.1 <- ggplot(data = SumPropTotal, aes(x = evtype, y = round(totalCost/1000000000, 2))) +
+        geom_point() +
+        coord_flip() +
+        geom_text(aes(label= round(totalCost/1000000000,2), hjust = -0.5)) +
+        ylim(limits = c(0,200)) +
+        ylab('Damage Costs in Billion US Dollar') +
+        xlab('Event') +
+        ggtitle('Property Damage')
+
+plot2.2 <- ggplot(data = SumCropTotal, aes(x = evtype, y = round(totalCost/1000000000, 2))) +
+        geom_point() +
+        coord_flip() +
+        geom_text(aes(label= round(totalCost/1000000000,2), hjust = -0.5)) +
+        ylim(limits = c(0,30)) +
+        ylab('Damage Costs in Billion US Dollar') +
+        xlab('Event') +
+        ggtitle('Crop Damage')
+
+plot2 <- grid.arrange(plot2.1, plot2.2, ncol = 2, top = textGrob('Top 10 weather events for economic consequences in the United States', gp = gpar(fontsize = 15, font = 8)))
+```
